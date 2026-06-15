@@ -1,0 +1,225 @@
+In **LangGraph**, **persistence** refers to saving graph execution state so that workflows can:
+
+* Resume after interruptions or failures
+* Support long-running conversations
+* Enable human-in-the-loop workflows
+* Maintain memory across sessions
+* Provide checkpoints for debugging and replay
+
+### How Persistence Works
+
+LangGraph stores the graph's state at each step using a **Checkpointer**.
+
+```python
+from langgraph.graph import StateGraph
+from langgraph.checkpoint.memory import InMemorySaver
+
+checkpointer = InMemorySaver()
+
+graph = builder.compile(
+    checkpointer=checkpointer
+)
+```
+
+When invoking the graph, you provide a **thread ID**:
+
+```python
+config = {
+    "configurable": {
+        "thread_id": "user-123"
+    }
+}
+
+graph.invoke(
+    {"messages": [...]},
+    config=config
+)
+```
+
+The `thread_id` acts as the key for retrieving and updating the saved state.
+
+---
+
+## Types of Persistence
+
+### 1. In-Memory Persistence
+
+Useful for development and testing.
+
+```python
+from langgraph.checkpoint.memory import InMemorySaver
+
+checkpointer = InMemorySaver()
+```
+
+Characteristics:
+
+* Fast
+* Data lost when application restarts
+* Not suitable for production
+
+---
+
+### 2. PostgreSQL Persistence
+
+Recommended for production.
+
+```python
+from langgraph.checkpoint.postgres import PostgresSaver
+
+checkpointer = PostgresSaver.from_conn_string(
+    "postgresql://user:password@localhost/db"
+)
+
+graph = builder.compile(
+    checkpointer=checkpointer
+)
+```
+
+Benefits:
+
+* Durable storage
+* Scales across multiple application instances
+* Supports workflow recovery
+
+---
+
+### 3. Custom Persistence
+
+You can implement your own checkpoint storage:
+
+```python
+class CustomSaver:
+    def get(self, config):
+        ...
+
+    def put(self, config, checkpoint):
+        ...
+```
+
+Common backends:
+
+* Redis
+* MongoDB
+* DynamoDB
+* S3
+* Elasticsearch
+
+---
+
+## Checkpoints
+
+Each node execution creates a checkpoint.
+
+Example flow:
+
+```text
+Start
+  ↓
+Node A  ← checkpoint 1
+  ↓
+Node B  ← checkpoint 2
+  ↓
+Node C  ← checkpoint 3
+```
+
+If execution fails at Node C, LangGraph can resume from the latest checkpoint rather than restarting.
+
+---
+
+## Accessing State History
+
+Retrieve previous checkpoints:
+
+```python
+history = graph.get_state_history(config)
+
+for state in history:
+    print(state)
+```
+
+Useful for:
+
+* Auditing
+* Debugging
+* Conversation replay
+
+---
+
+## Human-in-the-Loop Workflows
+
+Persistence enables pausing execution:
+
+```python
+from langgraph.types import interrupt
+
+def approval_node(state):
+    approved = interrupt(
+        "Approve this request?"
+    )
+    return {"approved": approved}
+```
+
+Later, resume:
+
+```python
+graph.invoke(
+    Command(resume=True),
+    config=config
+)
+```
+
+Because the graph state is persisted, execution continues from the interruption point.
+
+---
+
+## Persistence vs Memory
+
+These are related but different concepts:
+
+| Feature        | Persistence            | Memory                       |
+| -------------- | ---------------------- | ---------------------------- |
+| Purpose        | Save workflow state    | Store user knowledge/context |
+| Scope          | Entire graph execution | User/application data        |
+| Lifetime       | Execution/thread based | Long-term                    |
+| Implementation | Checkpointer           | Memory Store                 |
+
+A chatbot might use:
+
+* **Persistence** → conversation execution state
+* **Memory** → user preferences and facts
+
+---
+
+## Production Pattern
+
+```python
+from langgraph.checkpoint.postgres import PostgresSaver
+
+checkpointer = PostgresSaver.from_conn_string(DB_URL)
+
+graph = builder.compile(
+    checkpointer=checkpointer
+)
+
+config = {
+    "configurable": {
+        "thread_id": user_id
+    }
+}
+
+response = graph.invoke(
+    input_data,
+    config=config
+)
+```
+
+This gives you:
+
+* Durable conversations
+* Workflow recovery
+* Human approval flows
+* Multi-session continuity
+* State history and replay
+
+In short, **persistence in LangGraph is implemented through a checkpointer that saves graph state (checkpoints) associated with a thread ID, allowing workflows to resume, recover, and maintain context across executions.**
