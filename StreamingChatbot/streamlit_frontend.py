@@ -3,7 +3,13 @@ from langgraph_backend import chatbot
 from langchain_core.messages import HumanMessage
 
 # st.session_state -> dict -> 
-CONFIG = {'configurable': {'thread_id': 'thread-1'}}
+CONFIG = {
+        "configurable": {"thread_id": 'thread_1'},
+        "metadata": {
+            "thread_id": 'thread_1'
+        },
+        "run_name": "chat_turn",
+    }
 
 if 'message_history' not in st.session_state:
     st.session_state['message_history'] = []
