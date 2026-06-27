@@ -24,6 +24,27 @@ llm = ChatGroq(
 search_tool = DuckDuckGoSearchRun(region="us-en")
 
 @tool
+def get_weather(city: str) -> str:
+    """
+    Fetches the current weather for a specified city. 
+    Use this whenever you need to know the temperature or conditions of a location.
+    """
+    api_key = os.getenv("OPENWEATHERMAP_API_KEY")
+    url = f"http://api.openweathermap.org/data/2.5/weather?q={city}&appid={api_key}&units=metric"
+    
+    try:
+        response = requests.get(url)
+        response.raise_for_status()
+        data = response.json()
+        print(data)
+        condition = data["weather"][0]["description"]
+        temp = data["main"]["temp"]
+        return f"In {city}, the weather is currently {condition} with a temperature of {temp}°C."
+    
+    except Exception as e:
+        return f"Error fetching weather: {str(e)}"
+
+@tool
 def calculator(first_num: float, second_num: float, operation: str) -> dict:
     """
     Perform a basic arithmetic operation on two numbers.
@@ -92,7 +113,7 @@ def get_stock_price(symbol: str) -> dict:
             "message": str(e)
         }
 
-tools = [search_tool, get_stock_price, calculator]
+tools = [search_tool, get_stock_price, calculator,get_weather]
 llm_with_tools = llm.bind_tools(tools)
 
 class ChatState(TypedDict):
